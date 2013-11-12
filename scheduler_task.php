@@ -92,7 +92,7 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
         }
 
         $f = @fopen($filename, 'w');
-        fwrite($f, '#!/usr/bin/python'."\n\n");
+        fwrite($f, '#!/usr/bin/env python2.7'."\n\n");
 
         fwrite($f, 'from __future__ import absolute_import'."\n");
         fwrite($f, 'from celery.schedules import crontab'."\n");
@@ -181,7 +181,7 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
         }
 
         $f = @fopen($filename, 'w');
-        fwrite($f, '#!/usr/bin/python'."\n\n");
+        fwrite($f, '#!/usr/bin/env python2.7'."\n\n");
 
         fwrite($f, 'from __future__ import absolute_import'."\n");
         fwrite($f, 'from celery.utils.log import get_task_logger'."\n");
