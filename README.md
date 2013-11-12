@@ -16,6 +16,7 @@ Description of Files
 Installation
 ------------
 * Build a Redis Server.  A quick install for CentOS is below
+
 ```
 wget http://dl.fedoraproject.org/pub/epel/6/x86_64/epel-release-6-8.noarch.rpm
 wget http://centos.alt.ru/repository/centos/6/x86_64/centalt-release-6-1.noarch.rpm
@@ -52,29 +53,35 @@ zset-max-ziplist-value 64
 activerehashing yes
 ```
 * Install Python prerequisites.
+
 ```
 yum -y install python-pip.noarch gcc python-devel
 ```
 * Install Celery with Redis, Flower, necessary modules
+
 ```
 pip install pytz
 pip install -U celery-with-redis
 pip install flower
 ```
 * Checkout the code from this repo
+
 ```
 cd /opt
 git clone https://github.com/viable-hartman/mage_scheduler
 ```
 * Copy or link scheduler_task.php to your Magento installation's shell directory, and edit the file to configure it for your Redis install.
+
 ```
 cp /opt/mage_scheduler/scheduler_task.php <MAGE DIR>/shell/
 ```
 * On each worker download and configure the celeryd init script for your environment.
+
 ```
 wget -O /etc/init.d/celeryd https://github.com/celery/celery/blob/3.1/extra/generic-init.d/celeryd
 ```
 * On the beat server download and configure the beat init script for your environment.
+
 ```
 wget -O /etc/init.d/celerybeat https://raw.github.com/celery/celery/3.1/extra/generic-init.d/celerybeat
 ```
@@ -82,11 +89,13 @@ wget -O /etc/init.d/celerybeat https://raw.github.com/celery/celery/3.1/extra/ge
 Usage
 -----
 * Change to your Magento shell directory and execute the following command to build your environments task.py and celeryconfig.py Celery files.
+
 ```
 php scheduler_task.php -action build -tfile "/opt/mage_scheduler/tasks.py" -file "/opt/mage_scheduler/celeryconfig.py"
 ```
 * Now copy all files in /opt/mage_scheduler to the rest of your Magento "workers" and to a server you plan running Celery's beat dameon on.
 * Test your setup as follows:
+
 ```
 # On each worker
 cd /opt
@@ -96,6 +105,7 @@ cd /opt
 celery beat --app=mage_scheduler -s /opt/mage_scheduler/scheduler.db
 ```
 * Set your daemon and workers to run permanently.
+
 ```
 # On each worker
 chkconfig celeryd on
@@ -105,6 +115,7 @@ chkconfig celerybeat on
 /etc/init.d/celerybeat on
 ```
 * Check out whats happening with Celery Flower
+
 ```
 # Launch the server
 celery flower --broker=redis://localhost:6379/3
