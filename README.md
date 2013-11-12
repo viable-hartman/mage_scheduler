@@ -73,7 +73,6 @@ cp /opt/mage_scheduler/scheduler_task.php <MAGE DIR>/shell/
 * On each worker download and configure the celeryd init script for your environment.
 ```
 wget -O /etc/init.d/celeryd https://github.com/celery/celery/blob/3.1/extra/generic-init.d/celeryd
-
 ```
 * On the beat server download and configure the beat init script for your environment.
 ```
