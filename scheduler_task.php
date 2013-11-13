@@ -3,13 +3,12 @@
 require_once 'abstract.php';
 
 class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
-    const TIMEZONE = 'America/Toronto';
+    const TIMEZONE = 'Europe/London';
     const CELERY_ENABLE_UTC = 'True';
     const CELERY_TASK_SERIALIZER = 'json';
     const CELERY_RESULT_SERIALIZER = 'json';
-    const BROKER_URL = 'redis://localhost:6379/3';
-    const CELERY_RESULT_BACKEND = 'redis://localhost:6379/4';
     const PHP_PATH = '/usr/bin/php'; 
+    const CELERYD_CONCURRENCY = '4';
 
 	/**
 	 * Run script
@@ -54,12 +53,15 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
     }
 
     private function getOnlyOne($job) {
+        /*
         $settings = array(
             'aoecachecleaner' => array(
                 'oo_timeout' => 300,
             )
         );
         return $settings[$job];
+        */
+        return array('oo_timeout' => 18000);
     }
 
     private function getAnnotations($job) {
@@ -90,6 +92,14 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
             echo $this->usageHelp();
             exit(1);
         }
+        $broker = $this->getArg('broker');
+        if (empty($broker)) {
+            echo "\nNo broker provided!\n\n";
+            echo $this->usageHelp();
+            exit(2);
+        }
+        $broker_url = 'redis://'.$broker.':6379/3';
+        $result_backend = 'redis://'.$broker.':6379/4';
 
         $f = @fopen($filename, 'w');
         fwrite($f, '#!/usr/bin/env python2.7'."\n\n");
@@ -97,7 +107,7 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
         fwrite($f, 'from __future__ import absolute_import'."\n");
         fwrite($f, 'from celery.schedules import crontab'."\n");
 
-        fwrite($f, 'BROKER_URL = \''.self::BROKER_URL.'\''."\n");
+        fwrite($f, 'BROKER_URL = \''.$broker_url.'\''."\n");
         fwrite($f, 'BROKER_TRANSPORT_OPTIONS = {\'visibility_timeout\': 3600}  # Seconds to wait before message is redelivered to another broker'."\n");
         fwrite($f, 'CELERY_TASK_SERIALIZER = \''.self::CELERY_TASK_SERIALIZER.'\''."\n");
         fwrite($f, 'CELERY_TIMEZONE = \''.self::TIMEZONE.'\''."\n");
@@ -106,7 +116,8 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
         fwrite($f, 'CELERY_IMPORTS = ("mage_scheduler.tasks", )'."\n\n");
         fwrite($f, '# Using redis to store task state and results.'."\n");
         fwrite($f, 'CELERY_RESULT_SERIALIZER = \''.self::CELERY_RESULT_SERIALIZER.'\''."\n");
-        fwrite($f, 'CELERY_RESULT_BACKEND = \''.self::CELERY_RESULT_BACKEND.'\''."\n\n");
+        fwrite($f, 'CELERYD_CONCURRENCY = \''.self::CELERYD_CONCURRENCY.'\''."\n");
+        fwrite($f, '# CELERY_RESULT_BACKEND = \''.$result_backend.'\''."\n\n");
         $collection = Mage::getModel('aoe_scheduler/collection_crons');
         // Add any routes that exist for this task
         fwrite($f, 'CELERY_ROUTES = {'."\n");
@@ -160,7 +171,7 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
 	 * @return string
 	 */
 	public function buildConfigFileActionHelp() {
-		return " -file <file>\t\tCreate a Config File";
+		return " -file <file> -broker <IP>\t\tCreate a Config File";
     }
 
 	/**
@@ -223,7 +234,7 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
 	 * @return string
 	 */
 	public function buildTaskFileActionHelp() {
-		return " -tfile <file>\t\tCreate a Task File";
+		return " -tfile <file>\t\t\t\tCreate a Task File";
     }
 
 	/**
@@ -234,10 +245,16 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
     public function buildAction() {
         $farg = $this->getArg('file');
         $targ = $this->getArg('tfile');
+        $broker = $this->getArg('broker');
         if (empty($farg) || empty($targ)) {
             echo "\nNo File name(s) found!\n\n";
             echo $this->usageHelp();
             exit(1);
+        }
+        if (empty($broker)) {
+            echo "\nNo broker provided!\n\n";
+            echo $this->usageHelp();
+            exit(2);
         }
         $this->buildTaskFileAction();
         $this->buildConfigFileAction();
@@ -249,7 +266,7 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
 	 * @return string
 	 */
 	public function buildActionHelp() {
-		return " -file <file> -tfile <file>\tCreate both the task file and configuration file.";
+		return " -file <file> -tfile <file> -broker <IP>\tCreate both the task file and configuration file.";
     }
 }
 
