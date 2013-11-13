@@ -75,7 +75,15 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
 
     private function getRouteSettings($job) {
         $settings = array(
-            'aoecachecleaner' => 'web1queue'
+            'aoecachecleaner' => 'web1queue',
+            'catalog_product_index_price_reindex_all' => 'web1queue',
+            'enterprise_catalog_index_refresh_price' => 'web1queue',
+            'enterprise_index_clean_changelog' => 'web1queue',
+            'enterprise_refresh_index' => 'web1queue',
+            'enterprise_search_index_reindex_all' => 'web1queue',
+            'enterprise_targetrule_index_reindex' => 'web1queue',
+            'M2ePro_cron' => 'web1queue',
+            'Edi_File_Processors' => 'web1queue'
         );
         return $settings[$job];
     }
