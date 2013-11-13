@@ -185,10 +185,10 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
 
         fwrite($f, 'from __future__ import absolute_import'."\n");
         fwrite($f, 'from celery.utils.log import get_task_logger'."\n");
+        fwrite($f, 'from celery.task import Task'."\n");
         fwrite($f, 'from mage_scheduler.celery import celery'."\n");
         fwrite($f, 'from mage_scheduler.only_one import only_one'."\n");
-        fwrite($f, 'from subprocess import Popen, PIPE'."\n");
-        fwrite($f, 'from celery.task import Task'."\n\n");
+        fwrite($f, 'from subprocess import Popen, PIPE'."\n\n");
         fwrite($f, 'logger = get_task_logger(__name__)');
 
         $collection = Mage::getModel('aoe_scheduler/collection_crons');

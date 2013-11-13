@@ -2,10 +2,10 @@
 
 from __future__ import absolute_import
 from celery.utils.log import get_task_logger
+from celery.task import Task
 from mage_scheduler.celery import celery
 from mage_scheduler.only_one import only_one
 from subprocess import Popen, PIPE
-from celery.task import Task
 
 logger = get_task_logger(__name__)
 
