@@ -8,7 +8,8 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
     const CELERY_TASK_SERIALIZER = 'json';
     const CELERY_RESULT_SERIALIZER = 'json';
     const PHP_PATH = '/usr/bin/php'; 
-    const CELERYD_CONCURRENCY = '4';
+    const CELERYD_CONCURRENCY = '8';
+    const POLL_INTERVAL = '5';
 
 	/**
 	 * Run script
@@ -133,7 +134,7 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
             if( $configuration->getStatus() == 'enabled' ) {
                 $route = $this->getRouteSettings($configuration->getId());
                 if($route) {
-                    fwrite($f, '    \'tasks.'.$configuration->getId().'\': \''.$route.'\','."\n");
+                    fwrite($f, '    \'mage_scheduler.tasks.'.$configuration->getId().'\': {\'queue\': \''.$route.'\'},'."\n");
                 }
             }
         }
@@ -144,7 +145,7 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
             if( $configuration->getStatus() == 'enabled' ) {
                 $annotations = $this->getAnnotations($configuration->getId());
                 if($annotations) {
-                    fwrite($f, '    \'tasks.'.$configuration->getId().'\': {');
+                    fwrite($f, '    \'mage_scheduler.tasks.'.$configuration->getId().'\': {');
                     foreach ($annotations as $annotation => $v) {
                         fwrite($f, '\''.$annotation.'\': \''.$v.'\',');
                     }
@@ -157,16 +158,16 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
         fwrite($f, 'CELERYBEAT_SCHEDULE = {'."\n");
         foreach ($collection as $configuration) {
             if( $configuration->getStatus() == 'enabled' ) {
-                fwrite($f, '    \''.$configuration->getId().'\': {'."\n");
-                fwrite($f, '        \'task\': \'mage_scheduler.tasks.'.$configuration->getId().'\','."\n");
                 $cron = explode(" ", $configuration->getCronExpr(), -1);
                 if( $cron ) {
+                    fwrite($f, '    \''.$configuration->getId().'\': {'."\n");
+                    fwrite($f, '        \'task\': \'mage_scheduler.tasks.'.$configuration->getId().'\','."\n");
                     fwrite($f, '        \'schedule\': crontab(minute=\''.$cron[0].'\', hour=\''.$cron[1].'\', day_of_month=\''.$cron[2].'\', month_of_year=\''.$cron[3].'\', day_of_week=\'*\'),'."\n");
-                } else {
-                    fwrite($f, '        \'schedule\': crontab(minute=\'*/1\', hour=\'*\', day_of_month=\'*\', month_of_year=\'*\', day_of_week=\'*\'),'."\n");
+                //} else {
+                //    fwrite($f, '        \'schedule\': crontab(minute=\'*/1\', hour=\'*\', day_of_month=\'*\', month_of_year=\'*\', day_of_week=\'*\'),'."\n");
+                    fwrite($f, '        \'args\': (\''.Mage::getBaseDir('base').'/shell\',),'."\n");
+                    fwrite($f, '    },'."\n");
                 }
-                fwrite($f, '        \'args\': (\''.Mage::getBaseDir('base').'/shell\',),'."\n");
-                fwrite($f, '    },'."\n");
             }
         }
         fwrite($f, '}'."\n");
@@ -207,7 +208,8 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
         fwrite($f, 'from celery.task import Task'."\n");
         fwrite($f, 'from mage_scheduler.celery import celery'."\n");
         fwrite($f, 'from mage_scheduler.only_one import only_one'."\n");
-        fwrite($f, 'from subprocess import Popen, PIPE'."\n\n");
+        fwrite($f, 'import os'."\n\n");
+        //fwrite($f, 'from subprocess import Popen, STDOUT'."\n\n");
         fwrite($f, 'logger = get_task_logger(__name__)');
 
         $collection = Mage::getModel('aoe_scheduler/collection_crons');
@@ -220,17 +222,18 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
                     fwrite($f, '    @only_one(key="'.$configuration->getId().'", timeout='.$oo['oo_timeout'].')'."\n");
                 }
                 fwrite($f, '    def run(self, shell_dir):'."\n");
-                fwrite($f, '        cmd = \'scheduler.php -action runNow -code '.$configuration->getId().'\''."\n");
+                fwrite($f, '        cmd = \'%s/scheduler.php -action runNow -code '.$configuration->getId().'\' % (shell_dir)'."\n");
                 fwrite($f, '        logger.info(cmd)'."\n");
-                fwrite($f, '        p = Popen([cmd], executable=\''.self::PHP_PATH.'\', stdout=PIPE, stderr=PIPE, cwd=shell_dir)'."\n");
-                fwrite($f, '        output = p.communicate()[0]'."\n");
-                fwrite($f, '        if p.returncode > 0:'."\n");
-                fwrite($f, '            self.update_state(state=\'FAILURE\')'."\n");
-                fwrite($f, '            if output:'."\n");
-                fwrite($f, '                raise Exception(output)'."\n");
-                fwrite($f, '            else:'."\n");
-                fwrite($f, '                raise Exception(\'Unknown\')'."\n");
-                fwrite($f, '        return output');
+                fwrite($f, '        os.chdir(shell_dir)'."\n");
+                fwrite($f, '        retcode = os.system(\''.self::PHP_PATH.' %s\' % (cmd))'."\n");
+                //fwrite($f, '        devnull = open(\'/dev/null\', \'w\')'."\n");
+                //fwrite($f, '        p = Popen([cmd], executable=\''.self::PHP_PATH.'\', stdout=devnull, stderr=STDOUT, cwd=shell_dir, shell=True)'."\n");
+                //fwrite($f, '        p.wait()'."\n");
+                //fwrite($f, '        if p.returncode > 0:'."\n");
+                //fwrite($f, '            raise Exception(\'Error: %d\' % (p.returncode))'."\n");
+                fwrite($f, '        if retcode > 0:'."\n");
+                fwrite($f, '            raise Exception(\'Error: %d\' % (retcode))'."\n");
+                fwrite($f, '        return \'SUCCESS\'');
             }
         }
         fclose($f);
