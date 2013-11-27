@@ -52,17 +52,32 @@ zset-max-ziplist-entries 128
 zset-max-ziplist-value 64
 activerehashing yes
 ```
-* Install Python prerequisites.
+* Install Python 2.7 and prerequisites.
 
 ```
-yum -y install python-pip.noarch gcc python-devel
+yum -y groupinstall "Development tools"
+yum -y install zlib-devel bzip2-devel openssl-devel ncurses-devel sqlite-devel readline-devel tk-devel
+cd /opt
+wget http://python.org/ftp/python/2.7.6/Python-2.7.6.tgz
+wget --no-check-certificate https://pypi.python.org/packages/source/d/distribute/distribute-0.6.49.tar.gz
+tar -xf Python-2.7.6.tgz
+tar -xf distribute-0.6.49.tar.gz
+cd /opt/Python-2.7.6
+./configure --prefix=/usr/local
+make && make altinstall
+cd /usr/local/bin
+ln -s /usr/local/bin/python2.7 /usr/local/bin/python
+
+cd /opt/distribute-0.6.49
+cd distribute-0.6.49
+python2.7 setup.py install
 ```
-* Install Celery with Redis, Flower, necessary modules
+* Easy Install Celery with Redis, Flower, necessary modules
 
 ```
-pip install pytz
-pip install -U celery-with-redis
-pip install flower
+/usr/local/bin/easy_install-2.7 --upgrade pytz
+/usr/local/bin/easy_install-2.7 --upgrade celery-with-redis
+/usr/local/bin/easy_install-2.7 --upgrade flower
 ```
 * Checkout the code from this repo
 
