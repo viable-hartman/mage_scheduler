@@ -93,12 +93,36 @@ cp /opt/mage_scheduler/scheduler_task.php <MAGE DIR>/shell/
 * On each worker download and configure the celeryd init script for your environment.
 
 ```
-wget -O /etc/init.d/celeryd https://raw.github.com/celery/celery/3.1/extra/generic-init.d/celeryd
+cp /opt/mage_scheduler/etc/init.d/celeryd /etc/init.d/celeryd
+chmod 755 /etc/init.d/celeryd
+ln -s /etc/init.d/mage_scheduler /etc/init.d/celeryd
+cp /opt/mage_scheduler/etc/default/mage_scheduler.celeryd /etc/default/mage_scheduler
 ```
 * On the beat server download and configure the beat init script for your environment.
 
 ```
-wget -O /etc/init.d/celerybeat https://raw.github.com/celery/celery/3.1/extra/generic-init.d/celerybeat
+cp /opt/mage_scheduler/etc/init.d/celerybeat /etc/init.d/celerybeat
+chmod 755 /etc/init.d/celerybeat
+ln -s /etc/init.d/mage_scheduler /etc/init.d/celerybeat
+cp /opt/mage_scheduler/etc/default/mage_scheduler.celerybeat /etc/default/mage_scheduler
+```
+
+* On the beat server setup the flower GUI to launch on restart
+
+```
+/usr/local/bin/celery flower --broker=redis://redis.somewhere.com:6379/3 >/dev/null 2>&1 &
+```
+
+* On all servers change the redis host or IP in the only_one.py file to your redis host or IP.  You will have to do this until I get around to unifying all files off of a single serialized config file.
+
+* Add iptables rules to allow everything to communicate to the redis/flower server
+* vi /etc/sysconfig/iptables (then restart iptables)
+
+```
+# Redis TCP Port
+-A INPUT -m state --state NEW -m tcp -p tcp --dport 6379 -j ACCEPT
+# Flower web GUI port
+-A INPUT -m state --state NEW -m tcp -p tcp --dport 5555 -j ACCEPT
 ```
 
 Usage
@@ -106,7 +130,9 @@ Usage
 * Change to your Magento shell directory and execute the following command to build your environments task.py and celeryconfig.py Celery files.
 
 ```
-php scheduler_task.php -action build -tfile "/opt/mage_scheduler/tasks.py" -file "/opt/mage_scheduler/celeryconfig.py"
+php scheduler_task.php -action build -tfile "/opt/mage_scheduler/tasks.py" \
+                                     -file "/opt/mage_scheduler/celeryconfig.py" \
+                                     -broker "redis.somewhere.com"
 ```
 * Now copy all files in /opt/mage_scheduler to the rest of your Magento "workers" and to a server you plan running Celery's beat dameon on.
 * Test your setup as follows:
@@ -123,17 +149,17 @@ celery beat --app=mage_scheduler -s /opt/mage_scheduler/scheduler.db
 
 ```
 # On each worker
-chkconfig celeryd on
-/etc/init.d/celeryd start
+chkconfig mage_scheduler on
+/etc/init.d/mage_scheduler start
 # On the Celery beat server
-chkconfig celerybeat on
-/etc/init.d/celerybeat on
+chkconfig mage_scheduler on
+/etc/init.d/mage_scheduler on
 ```
 * Check out whats happening with Celery Flower
 
 ```
 # Launch the server
-celery flower --broker=redis://localhost:6379/3
+celery flower --broker=redis://redis.somewhere.com:6379/3
 # Visit the server
-http://localhost:5555
+http://redis.somewhere.com:5555
 ```
