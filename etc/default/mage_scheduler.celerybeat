@@ -1,0 +1,5 @@
+# mage_scheduler defaults file
+# Needed to force running as root.
+export C_FORCE_ROOT=1
+CELERYD_CHDIR="/opt"
+CELERY_APP="mage_scheduler"
