@@ -3,13 +3,7 @@
 require_once 'abstract.php';
 
 class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
-    const TIMEZONE = 'Europe/London';
-    const CELERY_ENABLE_UTC = 'True';
-    const CELERY_TASK_SERIALIZER = 'json';
-    const CELERY_RESULT_SERIALIZER = 'json';
     const PHP_PATH = '/usr/bin/php'; 
-    const CELERYD_CONCURRENCY = '8';
-    const POLL_INTERVAL = '5';
 
 	/**
 	 * Run script
@@ -18,12 +12,15 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
 	 */
 	public function run() {
 		$action = $this->getArg('action');
-		if (empty($action)) {
+		$configf = $this->getArg('config');
+		if (empty($action) || empty($configf)) {
 			echo $this->usageHelp();
 		} else {
 			$actionMethodName = $action.'Action';
 			if (method_exists($this, $actionMethodName)) {
-				$this->$actionMethodName();
+                if( !file_exists($configf) ) { echo "Config file $configf not found!"; exit(1); }
+                $config = json_decode(file_get_contents($configf));
+				$this->$actionMethodName($config);
 			} else {
 				echo "Action $action not found!\n";
 				echo $this->usageHelp();
@@ -84,7 +81,8 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
             'enterprise_search_index_reindex_all' => 'web1queue',
             'enterprise_targetrule_index_reindex' => 'web1queue',
             'M2ePro_cron' => 'web1queue',
-            'Edi_File_Processors' => 'web1queue'
+            'Edi_File_Processors' => 'web1queue',
+            'reindexall' => 'web1queue'
         );
         return $settings[$job];
     }
@@ -94,21 +92,18 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
 	 *
 	 * @return void
 	 */
-    public function buildConfigFileAction() {
-        $filename = $this->getArg('file');
+    public function buildConfigFileAction($config) {
+        $filename = $config->file;
         if (empty($filename)) {
-            echo "\nNo filename found!\n\n";
+            echo "\nBuildConfigFileAction: $filename not found!\n\n";
             echo $this->usageHelp();
             exit(1);
         }
-        $broker = $this->getArg('broker');
-        if (empty($broker)) {
-            echo "\nNo broker provided!\n\n";
+        if (empty($config->host)) {
+            echo "\nNo broker host provided!\n\n";
             echo $this->usageHelp();
             exit(2);
         }
-        $broker_url = 'redis://'.$broker.':6379/3';
-        $result_backend = 'redis://'.$broker.':6379/4';
 
         $f = @fopen($filename, 'w');
         fwrite($f, '#!/usr/bin/env python2.7'."\n\n");
@@ -116,17 +111,17 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
         fwrite($f, 'from __future__ import absolute_import'."\n");
         fwrite($f, 'from celery.schedules import crontab'."\n");
 
-        fwrite($f, 'BROKER_URL = \''.$broker_url.'\''."\n");
+        fwrite($f, 'BROKER_URL = \'redis://'.$config->host.':'.$config->port.'/'.$config->db.'\''."\n");
         fwrite($f, 'BROKER_TRANSPORT_OPTIONS = {\'visibility_timeout\': 3600}  # Seconds to wait before message is redelivered to another broker'."\n");
-        fwrite($f, 'CELERY_TASK_SERIALIZER = \''.self::CELERY_TASK_SERIALIZER.'\''."\n");
-        fwrite($f, 'CELERY_TIMEZONE = \''.self::TIMEZONE.'\''."\n");
-        fwrite($f, 'CELERY_ENABLE_UTC = '.self::CELERY_ENABLE_UTC.''."\n\n");
+        fwrite($f, 'CELERY_TASK_SERIALIZER = \''.$config->task_serializer.'\''."\n");
+        fwrite($f, 'CELERY_TIMEZONE = \''.$config->timezone.'\''."\n");
+        fwrite($f, 'CELERY_ENABLE_UTC = '.$config->utc.''."\n\n");
         fwrite($f, '# List of modules to import when celery starts.'."\n");
         fwrite($f, 'CELERY_IMPORTS = ("mage_scheduler.tasks", )'."\n\n");
         fwrite($f, '# Using redis to store task state and results.'."\n");
-        fwrite($f, 'CELERY_RESULT_SERIALIZER = \''.self::CELERY_RESULT_SERIALIZER.'\''."\n");
-        fwrite($f, 'CELERYD_CONCURRENCY = \''.self::CELERYD_CONCURRENCY.'\''."\n");
-        fwrite($f, '# CELERY_RESULT_BACKEND = \''.$result_backend.'\''."\n\n");
+        fwrite($f, 'CELERY_RESULT_SERIALIZER = \''.$config->result_serializer.'\''."\n");
+        fwrite($f, 'CELERYD_CONCURRENCY = \''.$config->concurrency.'\''."\n");
+        fwrite($f, '# CELERY_RESULT_BACKEND = \''.$config->behost.':'.$config->beport.'/'.$config->bedb.'\''."\n\n");
         $collection = Mage::getModel('aoe_scheduler/collection_crons');
         // Add any routes that exist for this task
         fwrite($f, 'CELERY_ROUTES = {'."\n");
@@ -138,6 +133,8 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
                 }
             }
         }
+        // Addition of reindexall
+        fwrite($f, '    \'mage_scheduler.tasks.reindexall\': {\'queue\': \''.$this->getRouteSettings('reindexall').'\'},'."\n");
         fwrite($f, '}'."\n");
         // Add any annotations that exists for this task
         fwrite($f, 'CELERY_ANNOTATIONS = {'."\n");
@@ -152,6 +149,15 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
                     fwrite($f, ' }'."\n");
                 }
             }
+        }
+        // Add any annotations for reindexall
+        $annotations = $this->getAnnotations('reindexall');
+        if($annotations) {
+            fwrite($f, '    \'mage_scheduler.tasks.reindexall\': {');
+            foreach ($annotations as $annotation => $v) {
+                fwrite($f, '\''.$annotation.'\': \''.$v.'\',');
+            }
+            fwrite($f, ' }'."\n");
         }
         fwrite($f, '}'."\n");
         // Add a Scheduler for this Task
@@ -170,6 +176,16 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
                 }
             }
         }
+        // Add Schedule for reindexall
+        $cron = array("0", "3", "*", "*", "*");
+        if( $cron ) {
+            fwrite($f, '    \'reindexall\': {'."\n");
+            fwrite($f, '        \'task\': \'mage_scheduler.tasks.reindexall\','."\n");
+            fwrite($f, '        \'schedule\': crontab(minute=\''.$cron[0].'\', hour=\''.$cron[1].'\', day_of_month=\''.$cron[2].'\', month_of_year=\''.$cron[3].'\', day_of_week=\''.$cron[4].'\'),'."\n");
+            fwrite($f, '        \'args\': (\''.Mage::getBaseDir('base').'/shell\',),'."\n");
+            fwrite($f, '    },'."\n");
+        }
+        ///////
         fwrite($f, '}'."\n");
         fclose($f);
 	}
@@ -180,7 +196,29 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
 	 * @return string
 	 */
 	public function buildConfigFileActionHelp() {
-		return " -file <file> -broker <IP>\t\tCreate a Config File";
+		return " -config <file>\tCreate Celery config file.";
+    }
+
+
+    /**
+     * print out individual Task info.
+     */
+    private function getTaskStr($id, $php_cmd, $args) {
+        $oo = $this->getOnlyOne($id);
+        $taskstr = "\n\n\n".'@celery.task'."\n";
+        $taskstr .= 'class '.$id.'(Task):'."\n";
+        if($oo) {
+            $taskstr .= '    @only_one(key="'.$id.'", timeout='.$oo['oo_timeout'].')'."\n";
+        }
+        $taskstr .= '    def run(self, shell_dir):'."\n";
+        $taskstr .= '        cmd = \'%s/'.$php_cmd.' '.implode(' ', $args).'\' % (shell_dir)'."\n";
+        $taskstr .= '        logger.info(cmd)'."\n";
+        $taskstr .= '        os.chdir(shell_dir)'."\n";
+        $taskstr .= '        retcode = os.system(\''.self::PHP_PATH.' %s\' % (cmd))'."\n";
+        $taskstr .= '        if retcode > 0:'."\n";
+        $taskstr .= '            raise Exception(\'Error: %d\' % (retcode))'."\n";
+        $taskstr .= '        return \'SUCCESS\'';
+        return $taskstr;
     }
 
 	/**
@@ -192,10 +230,10 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
 	 *
 	 * @return void
 	 */
-    public function buildTaskFileAction() {
-        $filename = $this->getArg('tfile');
+    public function buildTaskFileAction($config) {
+        $filename = $config->tfile;
         if (empty($filename)) {
-            echo "\nNo filename found!\n\n";
+            echo "\nBuildTaskFileAction: $filename not found!\n\n";
             echo $this->usageHelp();
             exit(1);
         }
@@ -209,33 +247,18 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
         fwrite($f, 'from mage_scheduler.celery import celery'."\n");
         fwrite($f, 'from mage_scheduler.only_one import only_one'."\n");
         fwrite($f, 'import os'."\n\n");
-        //fwrite($f, 'from subprocess import Popen, STDOUT'."\n\n");
         fwrite($f, 'logger = get_task_logger(__name__)');
 
         $collection = Mage::getModel('aoe_scheduler/collection_crons');
         foreach ($collection as $configuration) {
             if( $configuration->getStatus() == 'enabled' ) {
-                $oo = $this->getOnlyOne($configuration->getId());
-                fwrite($f, "\n\n\n".'@celery.task'."\n");
-                fwrite($f, 'class '.$configuration->getId().'(Task):'."\n");
-                if($oo) {
-                    fwrite($f, '    @only_one(key="'.$configuration->getId().'", timeout='.$oo['oo_timeout'].')'."\n");
-                }
-                fwrite($f, '    def run(self, shell_dir):'."\n");
-                fwrite($f, '        cmd = \'%s/scheduler.php -action runNow -code '.$configuration->getId().'\' % (shell_dir)'."\n");
-                fwrite($f, '        logger.info(cmd)'."\n");
-                fwrite($f, '        os.chdir(shell_dir)'."\n");
-                fwrite($f, '        retcode = os.system(\''.self::PHP_PATH.' %s\' % (cmd))'."\n");
-                //fwrite($f, '        devnull = open(\'/dev/null\', \'w\')'."\n");
-                //fwrite($f, '        p = Popen([cmd], executable=\''.self::PHP_PATH.'\', stdout=devnull, stderr=STDOUT, cwd=shell_dir, shell=True)'."\n");
-                //fwrite($f, '        p.wait()'."\n");
-                //fwrite($f, '        if p.returncode > 0:'."\n");
-                //fwrite($f, '            raise Exception(\'Error: %d\' % (p.returncode))'."\n");
-                fwrite($f, '        if retcode > 0:'."\n");
-                fwrite($f, '            raise Exception(\'Error: %d\' % (retcode))'."\n");
-                fwrite($f, '        return \'SUCCESS\'');
+                fwrite($f,
+                    $this->getTaskStr($configuration->getId(),
+                        'scheduler.php',
+                        ['-action runNow', '-code '.$configuration->getId()]));
             }
         }
+        fwrite($f, $this->getTaskStr('reindexall', 'indexer.php', ['reindexall']));
         fclose($f);
 	}
 
@@ -245,7 +268,7 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
 	 * @return string
 	 */
 	public function buildTaskFileActionHelp() {
-		return " -tfile <file>\t\t\t\tCreate a Task File";
+		return " -config <file>\tCreate a Celery tasks file.";
     }
 
 	/**
@@ -253,22 +276,21 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
 	 *
 	 * @return string
 	 */
-    public function buildAction() {
-        $farg = $this->getArg('file');
-        $targ = $this->getArg('tfile');
-        $broker = $this->getArg('broker');
+    public function buildAction($config) {
+        $farg = $config->file;
+        $targ = $config->tfile;
         if (empty($farg) || empty($targ)) {
             echo "\nNo File name(s) found!\n\n";
             echo $this->usageHelp();
             exit(1);
         }
-        if (empty($broker)) {
-            echo "\nNo broker provided!\n\n";
+        if (empty($config->host)) {
+            echo "\nNo broker host provided!\n\n";
             echo $this->usageHelp();
             exit(2);
         }
-        $this->buildTaskFileAction();
-        $this->buildConfigFileAction();
+        $this->buildTaskFileAction($config);
+        $this->buildConfigFileAction($config);
     }
 
 	/**
@@ -277,7 +299,7 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
 	 * @return string
 	 */
 	public function buildActionHelp() {
-		return " -file <file> -tfile <file> -broker <IP>\tCreate both the task file and configuration file.";
+		return " -config <file>\t\tCreate both the Celery task and config files.";
     }
 }
 

@@ -2,10 +2,12 @@
 
 from __future__ import absolute_import
 import redis
+import json
 
 #POOL = redis.ConnectionPool(max_connections=4, host='localhost', db=5, port=6379)
 #REDIS_CLIENT = redis.Redis(connection_pool=POOL)
-REDIS_CLIENT = redis.Redis(host='localhost', db=5, port=6379)
+data = json.load(open('config.json'))
+REDIS_CLIENT = redis.Redis(host=data['oohost'], db=data['oodb'], port=data['ooport'])
 
 
 def only_one(function=None, key="", timeout=None):

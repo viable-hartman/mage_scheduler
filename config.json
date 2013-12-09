@@ -1,0 +1,19 @@
+{
+    "host": "127.0.0.1",
+    "port": "6379",
+    "db": "3",
+    "behost": "127.0.0.1",
+    "beport": "6379",
+    "bedb": "4",
+    "oohost": "127.0.0.1",
+    "ooport": "6379",
+    "oodb": "5",
+    "file": "/tmp/celeryconfig.py",
+    "tfile": "/tmp/tasks.py",
+    "timezone": "Europe/London",
+    "utc": "True",
+    "task_serializer": "json",
+    "result_serializer": "json",
+    "concurrency": 8,
+    "poll_interval": 5
+}

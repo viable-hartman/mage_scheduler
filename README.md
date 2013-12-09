@@ -127,12 +127,11 @@ cp /opt/mage_scheduler/etc/default/mage_scheduler.celerybeat /etc/default/mage_s
 
 Usage
 -----
+* First edit the "/opt/mage_scheduler/config.json" file and change the parameters to fit your environment.
 * Change to your Magento shell directory and execute the following command to build your environments task.py and celeryconfig.py Celery files.
 
 ```
-php scheduler_task.php -action build -tfile "/opt/mage_scheduler/tasks.py" \
-                                     -file "/opt/mage_scheduler/celeryconfig.py" \
-                                     -broker "redis.somewhere.com"
+php scheduler_task.php -action build -config "/opt/mage_scheduler/config.json"
 ```
 * Now copy all files in /opt/mage_scheduler to the rest of your Magento "workers" and to a server you plan running Celery's beat dameon on.
 * Test your setup as follows:
