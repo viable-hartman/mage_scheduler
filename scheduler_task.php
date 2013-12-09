@@ -255,10 +255,10 @@ class Aoe_Scheduler_Shell_Scheduler_Task extends Mage_Shell_Abstract {
                 fwrite($f,
                     $this->getTaskStr($configuration->getId(),
                         'scheduler.php',
-                        ['-action runNow', '-code '.$configuration->getId()]));
+                        array('-action runNow', '-code '.$configuration->getId())));
             }
         }
-        fwrite($f, $this->getTaskStr('reindexall', 'indexer.php', ['reindexall']));
+        fwrite($f, $this->getTaskStr('reindexall', 'indexer.php', array('reindexall')));
         fclose($f);
 	}
 
