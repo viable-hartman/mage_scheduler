@@ -3,10 +3,12 @@
 from __future__ import absolute_import
 import redis
 import json
+import os
 
 #POOL = redis.ConnectionPool(max_connections=4, host='localhost', db=5, port=6379)
 #REDIS_CLIENT = redis.Redis(connection_pool=POOL)
-data = json.load(open('config.json'))
+configfile = "%s/config.json" % (os.path.dirname(os.path.realpath(__file__)))
+data = json.load(open(configfile))
 REDIS_CLIENT = redis.Redis(host=data['oohost'], db=data['oodb'], port=data['ooport'])
 
 
