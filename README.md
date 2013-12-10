@@ -64,6 +64,8 @@ tar -xf Python-2.7.6.tgz
 tar -xf distribute-0.6.49.tar.gz
 cd /opt/Python-2.7.6
 ./configure --prefix=/usr/local
+# OR for shared object libraries (you may need to add this to your profile though "export LD_LIBRARY_PATH=/usr/local/lib:${LD_LIBRARY_PATH}")
+./configure --enable-shared --prefix=/usr/local
 make && make altinstall
 cd /usr/local/bin
 ln -s /usr/local/bin/python2.7 /usr/local/bin/python
